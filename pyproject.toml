@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "imsg2spot"
+version = "0.1.0"
+description = "turn spotify links from an imessage group into a spotify playlist"
+readme = "readme.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+  { name = "Finn Clancy" }
+]
+dependencies = [
+  "requests>=2.32.0",
+  "rich>=13.7.0",
+]
+
+[project.scripts]
+imsg2spot = "cli:main"
+
+[project.urls]
+Homepage = "https://github.com/finnjclancy/imessage-spotify-playlist"
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+  "cli.py",
+]
+
+

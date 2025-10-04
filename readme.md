@@ -1,75 +1,75 @@
-## what this does
+## overview
 
-turns spotify links shared in an imessage group into a spotify playlist.
+turn imessage spotify links from a group chat into a spotify playlist. it runs locally on your mac, keeps only songs, de‑dupes, and orders oldest → newest.
 
-- reads your local imessage database (mac only), finds spotify links in a specific chat
-- expands short links, keeps only real tracks (no podcasts/shows/albums)
-- de-dupes and orders oldest → newest
-- creates/updates a public playlist on your spotify
-
-## one-liner (no spotify setup needed)
-
-my spotify app/client_id is baked in using a loopback redirect + pkce, so you don’t need to make your own app.
+## install
 
 ```bash
-python cli.py make-playlist --chat-name "F is F" --name "FEDs" --public
+pip install imsg2spot
 ```
 
-that opens your browser to authorize, then builds the playlist in order (oldest → newest).
+requirements (super short): macos with messages history, python 3.9+.
 
-notes:
-- if you prefer chat id, use: `--chat-id 27`
-- if you keep messages open, quit it first so the db copy isn’t locked
+mac permissions (first‑time only):
+1. open system settings
+2. privacy & security
+3. full disk access
+4. turn on "terminal" (or the shell/ide you’ll use)
 
-## quick start
+then quit and reopen the terminal.
 
-1) prerequisites
-- macos (messages app history on this machine)
-- python 3.9+
-- full disk access for your terminal (system settings → privacy & security → full disk access)
+## commands
 
-2) install
+### list-chats
+- overview
+  - shows recent chats so you can identify the right group
+  - `--limit N`: how many chats to show (default 50)
+  - `--filter-participant HANDLE`: only show chats that include this handle; repeatable
+    - HANDLE can be a phone in e164 (e.g., `+00000000000`) or an apple id email
+- example
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+imsg2spot list-chats --limit 50
+# narrow by member(s)
+imsg2spot list-chats --limit 200 \
+  --filter-participant "+00000000000" \
+  --filter-participant "+10000000000"
 ```
 
-3) prepare the messages database
-copy your db into `db/chat.db` (safe backup):
+### dry-run
+- overview
+  - preview what will be added (no spotify changes)
+  - pick exactly one chat selector:
+    - `--chat-name NAME` (case-insensitive)
+    - `--chat-id ID` (from list-chats)
+  - optional: `--db PATH` if you’re using a copied db
+- example
+```bash
+# by name
+imsg2spot dry-run --chat-name "group name"
+# or by id
+imsg2spot dry-run --chat-id 20
+```
+
+### make-playlist
+- overview
+  - creates/updates your playlist on spotify (opens browser to authorize)
+  - same chat selector as dry-run: choose `--chat-name NAME` or `--chat-id ID`
+  - `--name PLAYLIST_NAME`: playlist title
+  - `--public`: makes the playlist public (omit for private)
+  - optional: `SPOTIFY_REDIRECT_URI` to change the local port if 8000 is busy
+- example
+```bash
+# by name
+imsg2spot make-playlist --chat-name "group name" --name "my playlist" --public
+# or by id
+imsg2spot make-playlist --chat-id 20 --name "my playlist" --public
+```
+
+### copying your live messages db (optional but safer)
 ```bash
 mkdir -p db
 sqlite3 ~/Library/Messages/chat.db ".backup 'db/chat.db'"
 ```
+use `--db db/chat.db` if you copied it to a different path.
 
-4) find your chat and dry-run
-```bash
-python cli.py list-chats --limit 20
-python cli.py dry-run --chat-name "F is F"
-```
-
-## notes
-- only real tracks are included (`/track/<22-char-id>`). podcasts (`/episode`), shows, artists, albums, and playlists are ignored.
-- de-dupe keeps the first time a track was shared.
-- re-running won’t double-add; it replaces content with the current ordered list.
-
-## privacy
-- this runs locally. it only reads your imessage db file.
-- don’t commit personal data. `.gitignore` already includes `db/chat.db*` and `config.py`.
-
-## troubleshooting
-- “this redirect uri is not secure” in spotify dashboard: we use loopback `127.0.0.1` which is fine.
-- port 8000 in use: set `SPOTIFY_REDIRECT_URI` to another port (e.g., `http://127.0.0.1:8888/callback`) and re-run.
-- no output on dry-run: many links are “rich” in imessage; the cli parses those automatically. if you still see zero tracks, check you picked the right chat.
-- messages locked: quit the messages app and use the sqlite `.backup` command shown above.
-
-## getting older messages (e.g., a parent from 2019)
-1) they run the tool on their mac (same steps), or
-2) they send you a safe copy of their db:
-```bash
-sqlite3 ~/Library/Messages/chat.db ".backup '/tmp/chat.db'"
-```
-place it as `db/dad_chat.db`, then run with `--db db/dad_chat.db`.
-
-## license
-mit. do what you want, be kind.
+that’s it. if anything looks off, run dry‑run first. if port 8000 is busy, set `SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback` and re‑run.
