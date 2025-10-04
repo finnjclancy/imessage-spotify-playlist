@@ -556,17 +556,23 @@ def _replace_playlist_items(sess: requests.Session, playlist_id: str, uris: List
         idx += 100
 
 
-def cmd_make_playlist(args: argparse.Namespace) -> int:
-    try:
-        import config  # type: ignore
-    except Exception:
-        print("config.py not found or invalid. Create config.py with client_id and redirect_uri.")
-        return 1
+DEFAULT_CLIENT_ID = "e9b01b313bdb459ca8c53189b3ed59ce"
+DEFAULT_REDIRECT_URI = "http://127.0.0.1:8000/callback"
 
-    client_id = getattr(config, "client_id", None)
-    redirect_uri = getattr(config, "redirect_uri", None)
+
+def cmd_make_playlist(args: argparse.Namespace) -> int:
+    # optional config import; fall back to env or defaults
+    cfg = None
+    try:
+        import config as cfg  # type: ignore
+    except Exception:
+        cfg = None
+
+    client_id = os.getenv("SPOTIFY_CLIENT_ID") or (getattr(cfg, "client_id", None) if cfg else None) or DEFAULT_CLIENT_ID
+    redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI") or (getattr(cfg, "redirect_uri", None) if cfg else None) or DEFAULT_REDIRECT_URI
+
     if not client_id or not redirect_uri:
-        print("config.py must define client_id and redirect_uri.")
+        print("missing client configuration; set SPOTIFY_CLIENT_ID and SPOTIFY_REDIRECT_URI or create config.py")
         return 1
 
     conn = open_db(args.db)
