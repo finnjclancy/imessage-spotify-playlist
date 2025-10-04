@@ -127,6 +127,33 @@ def find_chats_by_name(conn: sqlite3.Connection, name_query: str) -> List[sqlite
     return cur.fetchall()
 
 
+def find_chats_by_participant(conn: sqlite3.Connection, participant: str) -> List[sqlite3.Row]:
+    """Find 1-on-1 chats with a specific participant (phone number or email).
+    Only returns individual conversations, not group chats.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        select distinct c.rowid as chat_id,
+               c.guid,
+               coalesce(c.display_name, c.chat_identifier) as name
+        from chat c
+        join chat_handle_join chj on chj.chat_id = c.rowid
+        join handle h on h.rowid = chj.handle_id
+        where h.id = ?
+        and c.rowid in (
+            select chat_id 
+            from chat_handle_join 
+            group by chat_id 
+            having count(*) = 1
+        )
+        order by c.rowid desc
+        """,
+        (participant,),
+    )
+    return cur.fetchall()
+
+
 def list_participants(conn: sqlite3.Connection, chat_id: int) -> List[str]:
     cur = conn.cursor()
     # Prefer chat_handle_join if present; otherwise derive from messages
@@ -327,12 +354,25 @@ def cmd_list_chats(args: argparse.Namespace) -> int:
         conn.close()
 
 
-def _resolve_chat_id(conn: sqlite3.Connection, chat_id: Optional[int], chat_name: Optional[str]) -> Tuple[int, str, List[str]]:
+def _resolve_chat_id(conn: sqlite3.Connection, chat_id: Optional[int], chat_name: Optional[str], number: Optional[str]) -> Tuple[int, str, List[str]]:
     if chat_id is not None:
         participants = list_participants(conn, chat_id)
         return chat_id, "", participants
-    if not chat_name:
-        raise ValueError("either chat-id or chat-name is required")
+    if not chat_name and not number:
+        raise ValueError("either chat-id, chat-name, or number is required")
+    
+    # if number is provided, search for chats with that participant
+    if number:
+        matches = find_chats_by_participant(conn, number)
+        if not matches:
+            raise ValueError(f"no chats found with participant: {number}")
+        chosen = matches[0]
+        cid = int(chosen["chat_id"])
+        name = _normalized_chat_name(chosen)
+        participants = list_participants(conn, cid)
+        return cid, name, participants
+    
+    # fallback to chat name search
     matches = find_chats_by_name(conn, chat_name)
     if not matches:
         raise ValueError(f"no chats matched name: {chat_name}")
@@ -346,7 +386,7 @@ def _resolve_chat_id(conn: sqlite3.Connection, chat_id: Optional[int], chat_name
 def cmd_dry_run(args: argparse.Namespace) -> int:
     conn = open_db(args.db)
     try:
-        chat_id, chat_name, participants = _resolve_chat_id(conn, args.chat_id, args.chat_name)
+        chat_id, chat_name, participants = _resolve_chat_id(conn, args.chat_id, args.chat_name, args.number)
         header = f"chat: {chat_name} (id {chat_id})" if chat_name else f"chat id: {chat_id}"
         parts = ", ".join(participants) if participants else "(none)"
         if RICH_AVAILABLE:
@@ -389,7 +429,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--version",
         action="version",
-        version="imsg2spot 0.1.3",
+        version="imsg2spot 0.1.5",
         help="show version and exit",
     )
     p.add_argument(
@@ -408,12 +448,14 @@ def build_parser() -> argparse.ArgumentParser:
     g1 = p_dry.add_mutually_exclusive_group(required=True)
     g1.add_argument("--chat-id", type=int, help="chat rowid to scan (e.g., 27)")
     g1.add_argument("--chat-name", type=str, help="chat display name (case-insensitive)")
+    g1.add_argument("--number", type=str, help="phone number to find conversation (e.g., +353863205817)")
     p_dry.set_defaults(func=cmd_dry_run)
 
     p_make = sub.add_parser("make-playlist", help="create/update public playlist with extracted tracks")
     g2 = p_make.add_mutually_exclusive_group(required=True)
     g2.add_argument("--chat-id", type=int, help="chat rowid to scan (e.g., 27)")
     g2.add_argument("--chat-name", type=str, help="chat display name (case-insensitive)")
+    g2.add_argument("--number", type=str, help="phone number to find conversation (e.g., +353863205817)")
     p_make.add_argument("--name", default="FEDs", help="playlist name (default: FEDs)")
     p_make.add_argument("--public", action="store_true", default=True, help="make playlist public (default: true)")
     p_make.set_defaults(func=cmd_make_playlist)
@@ -593,7 +635,7 @@ def cmd_make_playlist(args: argparse.Namespace) -> int:
 
     conn = open_db(args.db)
     try:
-        chat_id, chat_name, participants = _resolve_chat_id(conn, args.chat_id, args.chat_name)
+        chat_id, chat_name, participants = _resolve_chat_id(conn, args.chat_id, args.chat_name, args.number)
         header = f"chat: {chat_name} (id {chat_id})" if chat_name else f"chat id: {chat_id}"
         parts = ", ".join(participants) if participants else "(none)"
         if RICH_AVAILABLE:

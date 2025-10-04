@@ -41,19 +41,22 @@ imsg2spot list-chats --limit 200 \
   - pick exactly one chat selector:
     - `--chat-name NAME` (case-insensitive)
     - `--chat-id ID` (from list-chats)
-  - optional: `--db PATH` if you’re using a copied db
+    - `--number PHONE` (for 1-on-1 conversations)
+  - optional: `--db PATH` if you're using a copied db
 - example
 ```bash
 # by name
 imsg2spot dry-run --chat-name "group name"
 # or by id
 imsg2spot dry-run --chat-id 20
+# or by phone number (1-on-1 conversations only)
+imsg2spot dry-run --number "+1234567890"
 ```
 
 ### make-playlist
 - overview
   - creates/updates your playlist on spotify (opens browser to authorize)
-  - same chat selector as dry-run: choose `--chat-name NAME` or `--chat-id ID`
+  - same chat selector as dry-run: choose `--chat-name NAME`, `--chat-id ID`, or `--number PHONE`
   - `--name PLAYLIST_NAME`: playlist title
   - `--public`: makes the playlist public (omit for private)
   - optional: `SPOTIFY_REDIRECT_URI` to change the local port if 8000 is busy
@@ -63,6 +66,8 @@ imsg2spot dry-run --chat-id 20
 imsg2spot make-playlist --chat-name "group name" --name "my playlist" --public
 # or by id
 imsg2spot make-playlist --chat-id 20 --name "my playlist" --public
+# or by phone number (1-on-1 conversations only)
+imsg2spot make-playlist --number "+1234567890" --name "songs with friend" --public
 ```
 
 ### copying your live messages db (optional but safer)
