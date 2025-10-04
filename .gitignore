@@ -1,0 +1,10 @@
+config.py
+
+/db 
+/db/chat.db
+/db/chat.db-shm
+/db/chat.db-wal
+
+/.venv
+.venv
+__pycache__
