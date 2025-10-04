@@ -56,9 +56,19 @@ def _apple_time_to_datetime(seconds_or_ns: int) -> datetime:
 
 
 def open_db(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.OperationalError as e:
+        if "unable to open database file" in str(e):
+            print(f"error: unable to open database file at '{db_path}'")
+            print("\nthis tool needs access to your imessage database. try one of these solutions:")
+            print("1. use the default path: --db ~/Library/Messages/chat.db")
+            print("2. copy the database: cp ~/Library/Messages/chat.db ./chat.db")
+            print("3. specify the correct path: --db /path/to/your/chat.db")
+            print("\nnote: you may need to grant full disk access to terminal in system preferences > security & privacy")
+        raise
 
 
 def list_chats(conn: sqlite3.Connection, limit: int = 100) -> List[sqlite3.Row]:
@@ -377,9 +387,15 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="imessage → spotify extractor (dry-run)")
     p.add_argument(
+        "--version",
+        action="version",
+        version="imsg2spot 0.1.3",
+        help="show version and exit",
+    )
+    p.add_argument(
         "--db",
-        default=os.path.join("db", "chat.db"),
-        help="path to chat.db (default: db/chat.db)",
+        default=os.path.expanduser("~/Library/Messages/chat.db"),
+        help="path to chat.db (default: ~/Library/Messages/chat.db)",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -556,17 +572,23 @@ def _replace_playlist_items(sess: requests.Session, playlist_id: str, uris: List
         idx += 100
 
 
-def cmd_make_playlist(args: argparse.Namespace) -> int:
-    try:
-        import config  # type: ignore
-    except Exception:
-        print("config.py not found or invalid. Create config.py with client_id and redirect_uri.")
-        return 1
+DEFAULT_CLIENT_ID = "e9b01b313bdb459ca8c53189b3ed59ce"
+DEFAULT_REDIRECT_URI = "http://127.0.0.1:8000/callback"
 
-    client_id = getattr(config, "client_id", None)
-    redirect_uri = getattr(config, "redirect_uri", None)
+
+def cmd_make_playlist(args: argparse.Namespace) -> int:
+    # optional config import; fall back to env or defaults
+    cfg = None
+    try:
+        import config as cfg  # type: ignore
+    except Exception:
+        cfg = None
+
+    client_id = os.getenv("SPOTIFY_CLIENT_ID") or (getattr(cfg, "client_id", None) if cfg else None) or DEFAULT_CLIENT_ID
+    redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI") or (getattr(cfg, "redirect_uri", None) if cfg else None) or DEFAULT_REDIRECT_URI
+
     if not client_id or not redirect_uri:
-        print("config.py must define client_id and redirect_uri.")
+        print("missing client configuration; set SPOTIFY_CLIENT_ID and SPOTIFY_REDIRECT_URI or create config.py")
         return 1
 
     conn = open_db(args.db)
