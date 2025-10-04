@@ -5,7 +5,7 @@ turn imessage spotify links from a group chat into a spotify playlist. it runs l
 ## install
 
 ```bash
-pip install imsg2spot
+pipx install imsg2spot
 ```
 
 requirements (super short): macos with messages history, python 3.9+.

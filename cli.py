@@ -56,9 +56,19 @@ def _apple_time_to_datetime(seconds_or_ns: int) -> datetime:
 
 
 def open_db(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.OperationalError as e:
+        if "unable to open database file" in str(e):
+            print(f"error: unable to open database file at '{db_path}'")
+            print("\nthis tool needs access to your imessage database. try one of these solutions:")
+            print("1. use the default path: --db ~/Library/Messages/chat.db")
+            print("2. copy the database: cp ~/Library/Messages/chat.db ./chat.db")
+            print("3. specify the correct path: --db /path/to/your/chat.db")
+            print("\nnote: you may need to grant full disk access to terminal in system preferences > security & privacy")
+        raise
 
 
 def list_chats(conn: sqlite3.Connection, limit: int = 100) -> List[sqlite3.Row]:
@@ -377,9 +387,15 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="imessage → spotify extractor (dry-run)")
     p.add_argument(
+        "--version",
+        action="version",
+        version="imsg2spot 0.1.3",
+        help="show version and exit",
+    )
+    p.add_argument(
         "--db",
-        default=os.path.join("db", "chat.db"),
-        help="path to chat.db (default: db/chat.db)",
+        default=os.path.expanduser("~/Library/Messages/chat.db"),
+        help="path to chat.db (default: ~/Library/Messages/chat.db)",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
